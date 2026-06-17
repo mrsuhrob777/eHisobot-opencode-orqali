@@ -8,58 +8,49 @@ const adapter = new PrismaBetterSqlite3({ url: dbPath });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const hash = await bcrypt.hash("admin123", 10);
+  const adminHash = await bcrypt.hash("admin123", 10);
+  const userHash = await bcrypt.hash("123456", 10);
 
   await prisma.user.upsert({
-    where: { email: "admin@ehisobot.uz" },
+    where: { login: "admin" },
     update: {},
-    create: {
-      name: "Super Admin",
-      email: "admin@ehisobot.uz",
-      password: hash,
-      role: "super_admin",
-    },
+    create: { fullName: "System Admin", login: "admin", password: adminHash, role: "admin" },
   });
 
-  const schoolsData = [
-    { schoolNumber: 37, schoolName: "School #37", region: "Tashkent", district: "Mirzo Ulugbek", phone: "+998901234567" },
-    { schoolNumber: 38, schoolName: "School #38", region: "Tashkent", district: "Yunusabad", phone: "+998902345678" },
-    { schoolNumber: 23, schoolName: "School #23", region: "Samarkand", district: "Center", phone: "+998903456789" },
-    { schoolNumber: 24, schoolName: "School #24", region: "Samarkand", district: "Sogdiana", phone: "+998904567890" },
-    { schoolNumber: 36, schoolName: "School #36", region: "Bukhara", district: "Old City", phone: "+998905678901" },
-    { schoolNumber: 1, schoolName: "School #1", region: "Fergana", district: "Center", phone: "+998906789012" },
+  const school = await prisma.school.upsert({
+    where: { id: "demo-school-1" },
+    update: {},
+    create: { id: "demo-school-1", name: "School #37", address: "Tashkent, Mirzo Ulugbek" },
+  });
+
+  const users = [
+    { login: "teacher37", fullName: "Karimov A.", role: "teacher" },
+    { login: "director37", fullName: "Aliyev B.", role: "director" },
+    { login: "deputy37", fullName: "Rustamov C.", role: "deputy_director" },
   ];
 
-  for (const s of schoolsData) {
-    const school = await prisma.school.upsert({
-      where: { schoolNumber: s.schoolNumber },
+  for (const u of users) {
+    await prisma.user.upsert({
+      where: { login: u.login },
       update: {},
-      create: s,
+      create: { ...u, password: userHash, schoolId: school.id },
     });
-
-    for (let i = 1; i <= 3; i++) {
-      const tid = String(school.schoolNumber).padStart(2, "0");
-      const tnum = String(i).padStart(3, "0");
-      const username = `teacher_${tid}_${tnum}`;
-      const tHash = await bcrypt.hash(`T${s.schoolNumber}@2026#${i}`, 10);
-
-      await prisma.teacher.upsert({
-        where: { username },
-        update: {},
-        create: {
-          schoolId: school.id,
-          fullName: `Teacher ${s.schoolNumber}.${i}`,
-          username,
-          password: tHash,
-          phone: `+99890${String(s.schoolNumber).padStart(7, "0")}`,
-        },
-      });
-    }
   }
 
-  console.log("✅ Seed: 1 Super Admin + 6 schools + 18 teachers created");
+  // Second school
+  const school2 = await prisma.school.upsert({
+    where: { id: "demo-school-2" },
+    update: {},
+    create: { id: "demo-school-2", name: "School #23", address: "Samarkand, Center" },
+  });
+
+  await prisma.user.upsert({
+    where: { login: "teacher23" },
+    update: {},
+    create: { login: "teacher23", fullName: "Boboyev D.", password: userHash, role: "teacher", schoolId: school2.id },
+  });
+
+  console.log("✅ Seed: 1 admin + 2 schools + 5 users created");
 }
 
-main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());

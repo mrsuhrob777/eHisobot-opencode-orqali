@@ -1,13 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { revalidatePath } from "next/cache";
 
 export async function getDashboardStats() {
-  const [schools, teachers, students] = await Promise.all([
+  const [schools, users] = await Promise.all([
     prisma.school.count(),
-    prisma.teacher.count(),
-    prisma.student.count(),
+    prisma.user.count(),
   ]);
-  return { schools, teachers, students };
+  return { schools, users };
 }

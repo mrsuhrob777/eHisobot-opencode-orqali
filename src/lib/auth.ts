@@ -14,20 +14,20 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
-export function signToken(payload: { userId: string; email: string; role: string }) {
+export function signToken(payload: { userId: string; login: string; role: string; schoolId?: string | null }) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
 export function verifyToken(token: string) {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: string; email: string; role: string };
+    return jwt.verify(token, JWT_SECRET) as { userId: string; login: string; role: string; schoolId?: string | null };
   } catch {
     return null;
   }
 }
 
-export async function createSession(userId: string, email: string, role: string) {
-  const token = signToken({ userId, email, role });
+export async function createSession(userId: string, login: string, role: string, schoolId?: string | null) {
+  const token = signToken({ userId, login, role, schoolId });
   const cookieStore = await cookies();
   cookieStore.set("session", token, {
     httpOnly: true,
@@ -43,6 +43,17 @@ export async function getSession() {
   const token = cookieStore.get("session")?.value;
   if (!token) return null;
   return verifyToken(token);
+}
+
+const roleDashboards: Record<string, string> = {
+  admin: "/dashboard",
+  teacher: "/teacher",
+  director: "/director",
+  deputy_director: "/deputy-director",
+};
+
+export function getDashboardByRole(role: string): string {
+  return roleDashboards[role] || "/login";
 }
 
 export async function logout() {

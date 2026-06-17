@@ -7,32 +7,27 @@ import { redirect } from "next/navigation";
 
 export async function login(prevState: unknown, formData: FormData) {
   const validated = LoginSchema.safeParse({
-    email: formData.get("email"),
+    login: formData.get("login"),
     password: formData.get("password"),
   });
   if (!validated.success) return { errors: validated.error.flatten().fieldErrors };
 
-  const { email, password } = validated.data;
+  const { login: inputLogin, password } = validated.data;
+  const user = await prisma.user.findUnique({ where: { login: inputLogin } });
+  if (!user) return { message: "Invalid login or password" };
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (user) {
-    const valid = await comparePassword(password, user.password);
-    if (valid) {
-      await createSession(user.id, user.email, user.role);
-      redirect("/dashboard");
-    }
-  }
+  const valid = await comparePassword(password, user.password);
+  if (!valid) return { message: "Invalid login or password" };
 
-  const teacher = await prisma.teacher.findUnique({ where: { username: email } });
-  if (teacher) {
-    const valid = await comparePassword(password, teacher.password);
-    if (valid) {
-      await createSession(teacher.id, teacher.username, "teacher");
-      redirect("/teacher");
-    }
-  }
+  await createSession(user.id, user.login, user.role, user.schoolId);
 
-  return { message: "Invalid email or password" };
+  const dashboards: Record<string, string> = {
+    admin: "/dashboard",
+    teacher: "/teacher",
+    director: "/director",
+    deputy_director: "/deputy-director",
+  };
+  redirect(dashboards[user.role] || "/login");
 }
 
 export async function logout() {

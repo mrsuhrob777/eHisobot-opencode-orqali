@@ -4,10 +4,7 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
-export const metadata: Metadata = {
-  title: "eHisobot",
-  description: "Education Management System",
-};
+export const metadata: Metadata = { title: "eHisobot", description: "Education Report Management System" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
