@@ -11,13 +11,17 @@ export async function getSchools() {
 export async function getSchool(id: string) {
   return prisma.school.findUnique({
     where: { id },
-    include: { users: { orderBy: { createdAt: "desc" } } },
+    include: {
+      users: { orderBy: { createdAt: "desc" } },
+      classes: { include: { _count: { select: { students: true, groups: true } } } },
+      subjects: true,
+    },
   });
 }
 
 export async function createSchool(formData: FormData) {
   await prisma.school.create({
-    data: { name: formData.get("name") as string, address: formData.get("address") as string || undefined },
+    data: { name: formData.get("name") as string, address: formData.get("address") as string || undefined, district: formData.get("district") as string || "" },
   });
   revalidatePath("/dashboard/schools");
 }

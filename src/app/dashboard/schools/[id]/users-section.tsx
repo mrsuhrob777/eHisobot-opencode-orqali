@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { createSchoolUser, deleteUser } from "@/actions/users";
 import { t, type Lang } from "@/lib/i18n";
-import { UserPlus, Trash2 } from "lucide-react";
+import { Database, Settings, UserPlus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { TeacherAssign } from "./teacher-assign";
 
 const roles = ["teacher", "director", "deputy_director"] as const;
 
@@ -12,15 +14,22 @@ export function UsersSection({ schoolId, users, lang }: { schoolId: string; user
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [show, setShow] = useState(false);
+  const [assignUserId, setAssignUserId] = useState<string | null>(null);
 
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">{t("schools.users", lang)} ({users.length})</h2>
-        <button onClick={() => setShow(!show)}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02]">
-          <UserPlus className="h-4 w-4" /> {t("schools.add_user", lang)}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href={`/dashboard/schools/${schoolId}/school-base`}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02]">
+            <Database className="h-4 w-4" /> Maktab bazasi
+          </Link>
+          <button onClick={() => setShow(!show)}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md">
+            <UserPlus className="h-4 w-4" /> {t("schools.add_user", lang)}
+          </button>
+        </div>
       </div>
 
       {show && (
@@ -68,18 +77,36 @@ export function UsersSection({ schoolId, users, lang }: { schoolId: string; user
                   <td className="py-3 text-gray-500">{u.login}</td>
                   <td className="py-3"><span className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">{t(`role.${u.role}`, lang)}</span></td>
                   <td className="py-3 text-right">
-                    <form action={async () => {
-                      await deleteUser(u.id);
-                      router.refresh();
-                    }}>
-                      <button type="submit" className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
-                    </form>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setAssignUserId(u.id)}
+                        className="rounded-lg p-2 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600"
+                        title="Sozlash"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </button>
+                      <form action={async () => {
+                        await deleteUser(u.id);
+                        router.refresh();
+                      }}>
+                        <button type="submit" className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {assignUserId && (
+        <TeacherAssign
+          teacherId={assignUserId}
+          schoolId={schoolId}
+          lang={lang}
+          onClose={() => setAssignUserId(null)}
+        />
       )}
     </div>
   );

@@ -18,7 +18,7 @@ export default async function SchoolsPage() {
         </label>
       </div>
 
-      <input type="checkbox" id="add-school-modal" className="modal-toggle hidden" />
+      <input type="checkbox" id="add-school-modal" className="modal-toggle peer hidden" />
       <div className="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 peer-checked:flex">
         <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <h2 className="mb-4 text-lg font-bold text-gray-900">{t("schools.add", lang)}</h2>
@@ -26,6 +26,7 @@ export default async function SchoolsPage() {
             <div className="space-y-4">
               <div><label className="mb-1 block text-sm font-medium text-gray-700">{t("schools.name", lang)}</label><input name="name" required className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" /></div>
               <div><label className="mb-1 block text-sm font-medium text-gray-700">{t("schools.address", lang)}</label><input name="address" className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" /></div>
+              <div><label className="mb-1 block text-sm font-medium text-gray-700">Tuman nomi</label><input name="district" className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" /></div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <label htmlFor="add-school-modal" className="cursor-pointer rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">{t("schools.cancel", lang)}</label>

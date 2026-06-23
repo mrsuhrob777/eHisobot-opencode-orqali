@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { comparePassword, createSession, logout as destroySession } from "@/lib/auth";
+import { comparePassword, createSession, logout as destroySession, getSession } from "@/lib/auth";
 import { LoginSchema } from "@/lib/definitions";
 import { redirect } from "next/navigation";
 
@@ -32,4 +32,14 @@ export async function login(prevState: unknown, formData: FormData) {
 
 export async function logout() {
   await destroySession();
+}
+
+export async function getCurrentUser() {
+  const session = await getSession();
+  if (!session) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { id: true, fullName: true, login: true, role: true, schoolId: true },
+  });
+  return user;
 }

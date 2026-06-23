@@ -10,6 +10,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const adminHash = await bcrypt.hash("admin123", 10);
   const userHash = await bcrypt.hash("123456", 10);
+  const dilraboHash = await bcrypt.hash("dilrabo", 10);
 
   await prisma.user.upsert({
     where: { login: "admin" },
@@ -24,10 +25,18 @@ async function main() {
   });
 
   const users = [
-    { login: "teacher37", fullName: "Karimov A.", role: "teacher" },
-    { login: "director37", fullName: "Aliyev B.", role: "director" },
-    { login: "deputy37", fullName: "Rustamov C.", role: "deputy_director" },
+    { login: "dilrabo", fullName: "Dilrabo", role: "teacher", password: dilraboHash },
+    { login: "director37", fullName: "Aliyev B.", role: "director", password: userHash },
+    { login: "deputy37", fullName: "Rustamov C.", role: "deputy_director", password: userHash },
   ];
+
+  for (const u of users) {
+    await prisma.user.upsert({
+      where: { login: u.login },
+      update: {},
+      create: { login: u.login, fullName: u.fullName, password: u.password, role: u.role, schoolId: school.id },
+    });
+  }
 
   for (const u of users) {
     await prisma.user.upsert({

@@ -2,20 +2,13 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
-  FileSpreadsheet, Users, Plus, Trash2, Download, RotateCcw, X, Check,
-  Maximize2, Minimize2, Copy, CheckCheck, ChevronDown, Clock, Database
+  Plus, Trash2, Download, RotateCcw, X, Check,
+  Maximize2, Minimize2, ChevronDown, Clock, Save
 } from "lucide-react";
+import { t, type Lang } from "@/lib/i18n";
 
 const SCHOOL_NAME = "Yangiariq tumani 37-maktab";
 const DEFAULT_TASK_COUNT = 5;
-
-const SUBJECTS = [
-  "Adabiyot","Algebra","Astronomiya","Biologiya","CHQBT","Chizmachilik","Fizika",
-  "Geografiya","Geometriya","Huquq","Informatika","Ingliz tili","Iqtisodiyot",
-  "Jahon tarixi","Jismoniy madaniyat","Kimyo","Matematika","Musiqa","Ona tili",
-  "Rus tili","Sinf soati","Tabiiy fan","Tadbirkorlik","Tarbiya","Tarix",
-  "Tasviriy san'at","Texnologiya","O'zbekiston tarixi",
-];
 
 const CHSB_LABELS = ["B","Q","M"] as const;
 const CHSB_VALUES: Record<string,number> = { B:5, Q:3, M:1 };
@@ -26,27 +19,14 @@ const CHSB_COLORS: Record<string,{primary:string;border:string;bg:string;text:st
 };
 const QUARTERS = ["1-chorak","2-chorak","3-chorak","4-chorak"];
 const DB_STORAGE_KEY = "STUDENT_DATABASE_V2";
-const EXPIRY = { endDate:"26.03.2100", endTime:"00:00" };
 
-const INITIAL_DB: Record<string,Record<string,string[]>> = {
-  "5A":{
-    "Butun sinf":["Aliyev Vali","Bekova Malika","Rahimov Komil","Sobirov Elyor"],
-    "1-guruh":["Aliyev Vali","Bekova Malika"],
-    "2-guruh":["Rahimov Komil","Sobirov Elyor"],
-    "O'g'il bolalar":["Aliyev Vali","Rahimov Komil","Sobirov Elyor"],
-    "Qiz bolalar":["Bekova Malika"],
-  },
-};
-
-function getExpiryDate() {
-  const [d,m,y] = EXPIRY.endDate.split(".").map(Number);
-  const [h,min] = EXPIRY.endTime.split(":").map(Number);
-  return new Date(y,m-1,d,h,min);
+function cloneDB() {
+  return {};
 }
 
 function loadDB(): Record<string,Record<string,string[]>> {
   try { const raw = localStorage.getItem(DB_STORAGE_KEY); if (raw) return JSON.parse(raw); } catch {}
-  return JSON.parse(JSON.stringify(INITIAL_DB));
+  return {};
 }
 
 function saveDB(db: Record<string,Record<string,string[]>>) {
@@ -61,18 +41,19 @@ function getGroups(db: Record<string,Record<string,string[]>>, cls: string): str
   return db[cls] ? Object.keys(db[cls]) : ["Butun sinf"];
 }
 
-function createReport(type:"BSB"|"CHSB", db: Record<string,Record<string,string[]>>) {
-  const cls = Object.keys(db)[0] || "5A";
-  const grp = getGroups(db,cls)[0] || "Butun sinf";
-  const students = (db[cls]?.[grp] || []).sort(uzbekSort);
+function createReport(type:"BSB"|"CHSB", db: Record<string,Record<string,string[]>>, assignedSubjects?: string[]) {
+  const cls = Object.keys(db)[0] || "";
+  const grp = cls ? (getGroups(db,cls)[0] || "Butun sinf") : "Butun sinf";
+  const students = cls ? (db[cls]?.[grp] || []).sort(uzbekSort) : [];
+  const subject = (assignedSubjects && assignedSubjects.length > 0) ? assignedSubjects[0] : "";
   return {
     config: {
       date: new Date().toISOString().split("T")[0], school: SCHOOL_NAME,
-      classLevel: cls, group: grp, subject: SUBJECTS[0] || "",
+      classLevel: cls, group: grp, subject: subject,
       quarter: "1-chorak", reportNumber: "1", taskCount: DEFAULT_TASK_COUNT,
     },
     maxScores: Array(DEFAULT_TASK_COUNT).fill(10),
-    students: students.map((n,i) => ({ id:`s-${Date.now()}-${i}`, name:n, scores:Array(DEFAULT_TASK_COUNT).fill(0) })),
+    students: students.map((n:string,i:number) => ({ id:`s-${Date.now()}-${i}`, name:n, scores:Array(DEFAULT_TASK_COUNT).fill(0) })),
     signatures: { oibdo:"", metodist:"", teacher:"" },
   };
 }
@@ -177,27 +158,90 @@ async function exportDbExcel(db: Record<string,Record<string,string[]>>) {
   }
 }
 
+function getTeacherAssignedClasses(data: any): string[] {
+  return (data?.classes || []).map((c: any) => c.name);
+}
+
+function getTeacherAssignedSubjects(data: any): string[] {
+  return (data?.subjects || []).map((s: any) => s.name);
+}
+
+function getTeacherAssignedGroupsForClass(data: any, className: string): string[] {
+  const classes = (data?.classes || []) as { id: string; name: string }[];
+  const cls = classes.find((c) => c.name === className);
+  if (!cls) return [];
+  return (data?.groups || [])
+    .filter((g: any) => g.classId === cls.id)
+    .map((g: any) => g.name);
+}
+
 export default function BsbChsbPage() {
-  const [now, setNow] = useState(new Date());
-  const expiryDate = useMemo(() => getExpiryDate(), []);
-  const isExpired = now >= expiryDate;
-  const daysLeft = Math.ceil((expiryDate.getTime()-now.getTime())/(1000*60*60*24));
-
-  useEffect(() => { const id = setInterval(()=>setNow(new Date()),60000); return ()=>clearInterval(id); }, []);
-
-  const [db, setDb] = useState<Record<string,Record<string,string[]>>>(() => typeof window!=="undefined" ? loadDB() : INITIAL_DB);
+  const [lang, setLang] = useState<Lang>("uz");
+  useEffect(() => {
+    const saved = document.cookie.match(/(?:^|;\s*)lang=([^;]*)/)?.[1] as Lang | undefined;
+    if (saved) setLang(saved);
+    const handler = (e: CustomEvent) => setLang(e.detail as Lang);
+    window.addEventListener('langchange', handler as EventListener);
+    return () => window.removeEventListener('langchange', handler as EventListener);
+  }, []);
+  const [db, setDb] = useState<Record<string,Record<string,string[]>>>(() => typeof window!=="undefined" ? loadDB() : {});
   useEffect(() => { saveDB(db); }, [db]);
 
+  const [teacherData, setTeacherData] = useState<any>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getTeacherData } = await import("@/actions/school-management");
+        const res = await getTeacherData();
+        if (res.data) setTeacherData(res.data);
+      } catch {}
+    })();
+  }, []);
+
+  const assignedClasses = useMemo(() => getTeacherAssignedClasses(teacherData), [teacherData]);
+  const assignedSubjects = useMemo(() => getTeacherAssignedSubjects(teacherData), [teacherData]);
+
+  const assignedGroupsForClass = useCallback((className: string) => {
+    return getTeacherAssignedGroupsForClass(teacherData, className);
+  }, [teacherData]);
+
   const [reportType, setReportType] = useState<"BSB"|"CHSB">("BSB");
-  const [report, setReport] = useState(() => createReport("BSB", INITIAL_DB));
+  const [report, setReport] = useState(() => ({
+    config: {
+      date: new Date().toISOString().split("T")[0], school: SCHOOL_NAME,
+      classLevel: "", group: "Butun sinf", subject: "",
+      quarter: "1-chorak", reportNumber: "1", taskCount: DEFAULT_TASK_COUNT,
+    },
+    maxScores: Array(DEFAULT_TASK_COUNT).fill(10),
+    students: [] as { id: string; name: string; scores: number[] }[],
+    signatures: { oibdo: "", metodist: "", teacher: "" },
+  }));
+
+  useEffect(() => {
+    if (!teacherData) return;
+    if (assignedClasses.length === 0 || assignedSubjects.length === 0) return;
+    const cls = assignedClasses[0];
+    const grps = assignedGroupsForClass(cls);
+    const grp = grps.length > 0 ? grps[0] : "Butun sinf";
+    const dbStudents = teacherData?.studentsByClass?.[cls]?.[grp] || [];
+    const names = dbStudents.length > 0 ? dbStudents.sort(uzbekSort) : [];
+    setReport({
+      config: {
+        date: new Date().toISOString().split("T")[0], school: SCHOOL_NAME,
+        classLevel: cls, group: grp, subject: assignedSubjects[0] || "",
+        quarter: "1-chorak", reportNumber: "1", taskCount: DEFAULT_TASK_COUNT,
+      },
+      maxScores: Array(DEFAULT_TASK_COUNT).fill(10),
+      students: names.map((n:string,i:number) => ({ id:`s-${Date.now()}-${i}`, name:n, scores:Array(DEFAULT_TASK_COUNT).fill(0) })),
+      signatures: { oibdo:"", metodist:"", teacher:"" },
+    });
+  }, [teacherData]);
   const [fullscreen, setFullscreen] = useState(false);
-  const [showDbModal, setShowDbModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string|null>(null);
-  const [copied, setCopied] = useState(false);
-  const [dbClass, setDbClass] = useState(Object.keys(db)[0]||"5A");
-  const [dbGroup, setDbGroup] = useState(getGroups(db,Object.keys(db)[0]||"5A")[0]||"Butun sinf");
-  const [newStudentName, setNewStudentName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedToast, setSavedToast] = useState(false);
+  const [reportId, setReportId] = useState<string | null>(null);
   const [chsbTypes, setChsbTypes] = useState<string[]>(Array(DEFAULT_TASK_COUNT).fill("B"));
   const [chsbValues, setChsbValues] = useState<Record<string,number>>({ B:5, Q:3, M:1 });
   const [distributingIds, setDistributingIds] = useState<Set<string>>(new Set());
@@ -206,15 +250,17 @@ export default function BsbChsbPage() {
   const config = report.config;
 
   const syncStudents = useCallback((cls:string, grp:string, tc:number) => {
-    const names = (db[cls]?.[grp] || []).sort(uzbekSort);
-    return names.map((n,i) => ({ id:`s-${Date.now()}-${i}`, name:n, scores:Array(tc).fill(0) }));
-  }, [db]);
+    const dbStudents = teacherData?.studentsByClass?.[cls]?.[grp] || [];
+    const names = (dbStudents.length > 0 ? dbStudents : (db[cls]?.[grp] || [])).sort(uzbekSort);
+    return names.map((n:string,i:number) => ({ id:`s-${Date.now()}-${i}`, name:n, scores:Array(tc).fill(0) }));
+  }, [db, teacherData]);
 
   const updateConfig = useCallback((key:string, value:string|number) => {
     setReport(prev => {
       const next:any = { ...prev, config:{ ...prev.config, [key]:value } };
       if (key === "classLevel") {
-        const groups = getGroups(db, value as string);
+        const groupsForClass = assignedGroupsForClass(value as string);
+        const groups = groupsForClass.length > 0 ? groupsForClass : getGroups(db, value as string);
         next.config.group = groups[0] || "Butun sinf";
         next.students = syncStudents(value as string, next.config.group, next.config.taskCount);
         setDistributingIds(new Set());
@@ -237,7 +283,7 @@ export default function BsbChsbPage() {
       }
       return next;
     });
-  }, [db, reportType, syncStudents]);
+  }, [db, reportType, syncStudents, assignedGroupsForClass]);
 
   useEffect(() => {
     if (reportType === "CHSB") {
@@ -284,7 +330,7 @@ export default function BsbChsbPage() {
   }, []);
 
   const handleTotalChange = useCallback((row:number, val:string) => {
-    const total = Math.min(parseFloat(val)||0, report.maxScores.reduce((a,b)=>a+b,0));
+    const total = Math.min(parseFloat(String(val).replace(',','.'))||0, report.maxScores.reduce((a,b)=>a+b,0));
     setReport(prev => {
       const students = [...prev.students];
       if (students[row]) students[row] = { ...students[row], scores: distributeTotal(total, prev.maxScores) };
@@ -300,6 +346,31 @@ export default function BsbChsbPage() {
     const ids = report.students.map(s => s.id);
     setDistributingIds(ids.length > 0 && ids.every(id => distributingIds.has(id)) ? new Set() : new Set(ids));
   }, [report.students, distributingIds]);
+
+  useEffect(() => {
+    const params = new URL(window.location.href).searchParams;
+    const rid = params.get("reportId");
+    setReportId(rid);
+    if (!rid) return;
+    (async () => {
+      try {
+        const { getReportById } = await import("@/actions/reports");
+        const loaded = await getReportById(rid);
+        if (!loaded) return;
+        const d = JSON.parse(loaded.data);
+        setReport(prev => ({
+          ...prev,
+          config: { ...prev.config, ...d.config },
+          maxScores: d.maxScores || prev.maxScores,
+          students: d.students || prev.students,
+          signatures: d.signatures || prev.signatures,
+        }));
+        setReportType(loaded.type as "BSB" | "CHSB");
+        if (d.chsbTypes) setChsbTypes(d.chsbTypes);
+        if (d.chsbValues) setChsbValues(d.chsbValues);
+      } catch {}
+    })();
+  }, []);
 
   const handleKeyDown = useCallback((e:React.KeyboardEvent, row:number, col:number, field:string) => {
     let r=row, c=col;
@@ -324,60 +395,43 @@ export default function BsbChsbPage() {
     setDeleteTarget(null);
   }, []);
 
-  const resetReport = useCallback(() => { setReport(createReport(reportType,db)); setShowResetConfirm(false); }, [reportType,db]);
+  const resetReport = useCallback(() => { setReport(createReport(reportType,db,assignedSubjects)); setShowResetConfirm(false); }, [reportType,db,assignedSubjects]);
 
-  const changeReportType = useCallback((t:"BSB"|"CHSB") => { setReportType(t); setReport(createReport(t,db)); }, [db]);
+  const changeReportType = useCallback((t:"BSB"|"CHSB") => { setReportType(t); }, []);
 
   useEffect(() => {
-    const handler = (e:KeyboardEvent) => { if (e.key==="Escape") { setShowDbModal(false); setShowResetConfirm(false); setDeleteTarget(null); }};
+    const handler = (e:KeyboardEvent) => { if (e.key==="Escape") { setShowResetConfirm(false); setDeleteTarget(null); }};
     window.addEventListener("keydown",handler);
     return () => window.removeEventListener("keydown",handler);
   }, []);
 
-  const handleDbClassChange = useCallback((cls:string) => {
-    setDbClass(cls);
-    setDbGroup(getGroups(db,cls)[0] || "Butun sinf");
-  }, [db]);
-
-  const addStudentToDb = useCallback(() => {
-    if (!newStudentName.trim()) return;
-    setDb(prev => {
-      const next = { ...prev };
-      if (!next[dbClass]) next[dbClass] = { "Butun sinf":[],"1-guruh":[],"2-guruh":[],"O'g'il bolalar":[],"Qiz bolalar":[] };
-      if (!next[dbClass][dbGroup]) next[dbClass][dbGroup] = [];
-      if (!next[dbClass][dbGroup].includes(newStudentName.trim())) next[dbClass][dbGroup] = [...next[dbClass][dbGroup], newStudentName.trim()];
-      return next;
-    });
-    setNewStudentName("");
-  }, [newStudentName, dbClass, dbGroup]);
-
-  const removeStudentFromDb = useCallback((name:string) => {
-    setDb(prev => ({ ...prev, [dbClass]: { ...prev[dbClass], [dbGroup]: (prev[dbClass]?.[dbGroup]||[]).filter(n=>n!==name) } }));
-  }, [dbClass, dbGroup]);
-
-  const copyDbCode = useCallback(() => {
-    navigator.clipboard.writeText(JSON.stringify(db));
-    setCopied(true);
-    setTimeout(()=>setCopied(false),2000);
-  }, [db]);
-
-  if (isExpired) {
-    return (
-      <div className="flex min-h-[80vh] items-center justify-center">
-        <div className="max-w-md w-full rounded-2xl border border-gray-100 bg-white p-8 shadow-sm text-center">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-red-50 text-red-500">
-            <Clock className="h-10 w-10" />
-          </div>
-          <h2 className="mb-2 text-xl font-bold text-gray-900">Obuna vaqtingiz tugadi</h2>
-          <p className="mb-8 text-sm text-gray-500">Dasturdan foydalanish muddati o'z nihoyasiga yetdi. Iltimos, ma'muriyatga murojaat qiling.</p>
-          <button onClick={()=>exportDbExcel(db)}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02]">
-            <Download className="h-4 w-4" /> Bazani yuklab olish (Excel)
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleSaveReport = useCallback(async () => {
+    setSaving(true);
+    try {
+      const { saveReport, updateReport } = await import("@/actions/reports");
+      const data = JSON.stringify({
+        config: report.config,
+        maxScores: report.maxScores,
+        students: report.students,
+        signatures: report.signatures,
+        chsbTypes: reportType === "CHSB" ? chsbTypes : undefined,
+        chsbValues: reportType === "CHSB" ? chsbValues : undefined,
+      });
+      const title = `${report.config.classLevel} - ${report.config.subject} - ${report.config.reportNumber}-${reportType}`;
+      if (reportId) {
+        await updateReport(reportId, reportType, title, data);
+      } else {
+        await saveReport(reportType, title, data);
+      }
+      setSavedToast(true);
+      setTimeout(() => setSavedToast(false), 2000);
+    } catch (err) {
+      console.error("Save error:", err);
+      alert(t("bsb_chsb.error_msg", lang));
+    } finally {
+      setSaving(false);
+    }
+  }, [report, reportType, chsbTypes, chsbValues, reportId]);
 
   const students = report.students;
   const maxScores = report.maxScores;
@@ -391,18 +445,18 @@ export default function BsbChsbPage() {
     return { sum, avg: studentCount>0 ? sum/studentCount : 0, pct: studentCount>0 && max>0 ? (sum/(studentCount*max))*100 : 0 };
   });
 
-  const btnPrimary = "inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]";
-  const btnSecondary = "inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md";
-  const btnDanger = "inline-flex items-center gap-2 rounded-xl border border-red-200 px-5 py-2.5 text-sm font-medium text-red-600 transition-all hover:bg-red-50";
-  const inputStyle = "h-11 w-full rounded-xl border border-gray-300 bg-gray-50 px-4 text-sm font-medium outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20";
-  const selectStyle = "h-11 w-full rounded-xl border border-gray-300 bg-gray-50 px-4 text-sm font-medium outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20";
+  const btnPrimary = "inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-2.5 min-h-[44px] text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]";
+  const btnSecondary = "inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 min-h-[44px] text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md";
+  const btnDanger = "inline-flex items-center gap-2 rounded-xl border border-red-200 px-5 py-2.5 min-h-[44px] text-sm font-medium text-red-600 transition-all hover:bg-red-50";
+  const inputStyle = "h-11 lg:h-11 min-h-[44px] w-full rounded-xl border border-gray-300 bg-gray-50 px-4 text-sm font-medium outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20";
+  const selectStyle = "h-11 lg:h-11 min-h-[44px] w-full rounded-xl border border-gray-300 bg-gray-50 px-4 text-sm font-medium outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20";
 
   return (
     <div className={`transition-all duration-300 ${fullscreen ? "fixed inset-0 z-50 overflow-auto bg-gray-50" : ""}`}>
       {!fullscreen && (
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">BSB / CHSB Hisobot</h1>
-          <p className="mt-1 text-sm text-gray-500">O'qituvchi paneli</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("bsb_chsb.title", lang)}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t("bsb_chsb.teacher_panel", lang)}</p>
         </div>
       )}
 
@@ -414,19 +468,16 @@ export default function BsbChsbPage() {
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white shadow-md">BS</div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">{reportType} Tizimi</h2>
+                  <h2 className="text-lg font-bold text-gray-900">{reportType} {t("bsb_chsb.system", lang)}</h2>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     <span>{SCHOOL_NAME}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
-                    <span className={`inline-flex items-center gap-1 font-medium ${daysLeft<=3 ? "text-red-500" : "text-gray-500"}`}>
-                      <Clock className="h-3 w-3" /> {daysLeft} kun qoldi
-                    </span>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={()=>setShowResetConfirm(true)} className={btnDanger}><RotateCcw className="h-4 w-4" /> Tozalash</button>
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <button onClick={()=>setShowResetConfirm(true)} className={btnDanger}><RotateCcw className="h-4 w-4" /> {t("bsb_chsb.reset", lang)}</button>
               <div className="flex rounded-xl border border-gray-200 bg-gray-100 p-0.5">
                 <button onClick={()=>changeReportType("BSB")}
                   className={`rounded-lg px-4 py-2 text-xs font-bold tracking-wider transition-all ${reportType==="BSB" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>BSB</button>
@@ -440,35 +491,38 @@ export default function BsbChsbPage() {
           </div>
 
           <div className="mb-4 grid gap-4 sm:grid-cols-3">
-            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">Sana</label><input type="date" value={config.date} onChange={e=>updateConfig("date",e.target.value)} className={inputStyle} /></div>
-            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">Sinf</label>
+            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("bsb_chsb.date", lang)}</label><input type="date" value={config.date} onChange={e=>updateConfig("date",e.target.value)} className={inputStyle} /></div>
+            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("bsb_chsb.class", lang)}</label>
               <select value={config.classLevel} onChange={e=>updateConfig("classLevel",e.target.value)} className={selectStyle}>
-                {Object.keys(db).map(c=><option key={c} value={c}>{c.toUpperCase()}-sinf</option>)}
+                {assignedClasses.length > 0 ? assignedClasses.map(c=><option key={c} value={c}>{c.toUpperCase()}{t("bsb_chsb.class_suffix", lang)}</option>) : <option value="">{t("bsb_chsb.class", lang)}</option>}
               </select>
             </div>
-            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">Fan</label>
+            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("bsb_chsb.subject", lang)}</label>
               <select value={config.subject} onChange={e=>updateConfig("subject",e.target.value)} className={selectStyle}>
-                {SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}
+                {assignedSubjects.length > 0 ? assignedSubjects.map(s=><option key={s} value={s}>{s}</option>) : <option value="">{t("bsb_chsb.subject", lang)}</option>}
               </select>
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-4">
-            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">Chorak</label>
+            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("bsb_chsb.quarter", lang)}</label>
               <select value={config.quarter} onChange={e=>updateConfig("quarter",e.target.value)} className={selectStyle}>
-                {QUARTERS.map(q=><option key={q} value={q}>{q}</option>)}
+                {QUARTERS.map((q,i)=><option key={q} value={q}>{t(`bsb_chsb.quarter_${i+1}`, lang)}</option>)}
               </select>
             </div>
-            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{reportType} №</label>
+            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{reportType} {t("bsb_chsb.number", lang)}</label>
               <input type="text" value={config.reportNumber} onChange={e=>updateConfig("reportNumber",e.target.value)} className={inputStyle} />
             </div>
-            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">Guruh</label>
+            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("bsb_chsb.group", lang)}</label>
               <select value={config.group} onChange={e=>updateConfig("group",e.target.value)} className={selectStyle}>
-                {getGroups(db,config.classLevel).map(g=><option key={g} value={g}>{g}</option>)}
+                {(() => {
+                  const g = assignedGroupsForClass(config.classLevel);
+                  return (g.length > 0 ? g : getGroups(db,config.classLevel)).map(g2 => <option key={g2} value={g2}>{g2}</option>);
+                })()}
               </select>
             </div>
-            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">Topshiriqlar</label>
-              <input type="number" min={1} max={15} value={config.taskCount} onChange={e=>updateConfig("taskCount",parseInt(e.target.value)||1)} className={inputStyle} />
+            <div><label className="mb-1 block text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("bsb_chsb.tasks", lang)}</label>
+              <input type="number" min={1} max={15} value={config.taskCount} onChange={e=>updateConfig("taskCount",parseInt(String(e.target.value).replace(',','.'))||1)} className={inputStyle} />
             </div>
           </div>
         </div>
@@ -479,9 +533,9 @@ export default function BsbChsbPage() {
             <div className="flex flex-wrap items-center justify-center gap-6">
               {CHSB_LABELS.map(l => (
                 <div key={l} className="flex flex-col items-center gap-1.5 rounded-xl border-2 p-3" style={{ borderColor: CHSB_COLORS[l].border, backgroundColor: `${CHSB_COLORS[l].bg}44` }}>
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: CHSB_COLORS[l].primary }}>{l} BALI</span>
-                  <input type="number" step="0.1" value={chsbValues[l]||""}
-                    onChange={e=>setChsbValues(p=>({...p,[l]:parseFloat(e.target.value)||0}))}
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: CHSB_COLORS[l].primary }}>{t(`bsb_chsb.${l.toLowerCase()}_ball`, lang)}</span>
+                  <input type="text" inputMode="decimal" value={chsbValues[l]||""}
+                    onChange={e=>setChsbValues(p=>({...p,[l]:parseFloat(String(e.target.value).replace(',','.'))||0}))}
                     className="h-9 w-20 rounded-lg border-2 text-center text-sm font-bold outline-none transition-all focus:border-indigo-500"
                     style={{ borderColor: CHSB_COLORS[l].border, color: CHSB_COLORS[l].text }} />
                 </div>
@@ -492,20 +546,20 @@ export default function BsbChsbPage() {
 
         {/* Max scores */}
         <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">Maksimal ballar</h3>
+          <h3 className="mb-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">{t("bsb_chsb.max_scores", lang)}</h3>
           <div className="flex flex-wrap justify-center gap-3">
             {reportType === "BSB" ? maxScores.map((ms,i) => (
               <div key={i} className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                <span className="text-xs font-semibold text-gray-400">{i+1}-topsh</span>
-                <input type="number" value={ms||""} onChange={e=>{const v=parseFloat(e.target.value)||0; setReport(p=>{const m=[...p.maxScores]; m[i]=v; return {...p,maxScores:m}; });}}
+                <span className="text-xs font-semibold text-gray-400">{i+1}{t("bsb_chsb.task_short", lang)}</span>
+                <input type="text" inputMode="decimal" value={ms||""} onChange={e=>{const v=parseFloat(String(e.target.value).replace(',','.'))||0; setReport(p=>{const m=[...p.maxScores]; m[i]=v; return {...p,maxScores:m}; });}}
                   className="h-8 w-16 rounded-lg border border-gray-200 bg-white text-center text-sm font-bold text-indigo-700 outline-none focus:border-indigo-500" />
               </div>
-            )) : chsbTypes.map((t,i) => (
-              <button key={i} onClick={()=>{const o=["B","Q","M"]; const n=o[(o.indexOf(t)+1)%3]; setChsbTypes(p=>{const a=[...p]; a[i]=n; return a; });}}
-                className="flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition-all active:scale-95" style={{ borderColor: CHSB_COLORS[t].border }}>
-                <span className="text-xs font-semibold text-gray-400">{i+1}-topsh</span>
-                <span className="text-lg font-black leading-none" style={{ color: CHSB_COLORS[t].primary }}>{t}</span>
-                <span className="text-xs font-bold" style={{ color: CHSB_COLORS[t].text }}>{chsbValues[t]} b.</span>
+            )) : chsbTypes.map((ch,i) => (
+              <button key={i} onClick={()=>{const o=["B","Q","M"]; const n=o[(o.indexOf(ch)+1)%3]; setChsbTypes(p=>{const a=[...p]; a[i]=n; return a; });}}
+                className="flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition-all active:scale-95" style={{ borderColor: CHSB_COLORS[ch].border }}>
+                <span className="text-xs font-semibold text-gray-400">{i+1}{t("bsb_chsb.task_short", lang)}</span>
+                <span className="text-lg font-black leading-none" style={{ color: CHSB_COLORS[ch].primary }}>{ch}</span>
+                <span className="text-xs font-bold" style={{ color: CHSB_COLORS[ch].text }}>{chsbValues[ch]} {t("bsb_chsb.ball", lang)}</span>
               </button>
             ))}
           </div>
@@ -513,9 +567,13 @@ export default function BsbChsbPage() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <button onClick={addStudentRow} className={btnPrimary}><Plus className="h-4 w-4" /> O'quvchi qo'shish</button>
-          <button onClick={()=>exportReportExcel(students,config.classLevel,config.group,config.subject,config.quarter,config.reportNumber,config.date)} className={btnPrimary}><FileSpreadsheet className="h-4 w-4" /> Excel yuklab olish</button>
-          <button onClick={()=>setShowDbModal(true)} className={btnSecondary}><Database className="h-4 w-4" /> O'quvchilar bazasi</button>
+          <button onClick={addStudentRow} className={btnPrimary}><Plus className="h-4 w-4" /> {t("bsb_chsb.add_student", lang)}</button>
+          <button onClick={handleSaveReport} disabled={saving} className={btnPrimary}>
+            {saving ? (
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            ) : <Save className="h-4 w-4" />}
+            {saving ? t("bsb_chsb.saving", lang) : (reportId ? t("bsb_chsb.update", lang) : t("bsb_chsb.save", lang))}
+          </button>
         </div>
       </div>
 
@@ -524,8 +582,8 @@ export default function BsbChsbPage() {
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="h-6 w-1 rounded-full bg-gradient-to-b from-indigo-600 to-blue-600" />
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{reportType} RO'YXATI</h3>
-            <span className="rounded-lg bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">{students.length} ta</span>
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{reportType} {t("bsb_chsb.list_title", lang)}</h3>
+            <span className="rounded-lg bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">{students.length} {t("common.count_suffix", lang)}</span>
           </div>
           <button onClick={()=>setFullscreen(!fullscreen)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-indigo-600 transition-all">
             {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -537,25 +595,25 @@ export default function BsbChsbPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                 <th className="w-10 px-4 py-3 text-center">#</th>
-                <th className="min-w-[220px] px-4 py-3">O'quvchi FISH</th>
+                <th className="min-w-[220px] px-4 py-3">{t("bsb_chsb.student_name", lang)}</th>
                 {maxScores.map((_,i) => (
                   <th key={i} className="px-3 py-3 text-center border-l border-gray-100">
                     <div className="flex flex-col items-center">
-                      <span>TOP-{i+1}</span>
+                      <span>{t("bsb_chsb.top_prefix", lang)}{i+1}</span>
                       {reportType==="CHSB" && <span className="text-xs mt-0.5" style={{ color: CHSB_COLORS[chsbTypes[i]]?.primary }}>{chsbTypes[i]}</span>}
                     </div>
                   </th>
                 ))}
                 <th className="w-28 px-3 py-3 text-center border-l border-gray-100">
                   <div className="flex flex-col items-center gap-0.5">
-                    <span>Jami</span>
+                    <span>{t("bsb_chsb.total", lang)}</span>
                     <button onClick={toggleAllDistribution} className={`rounded p-0.5 transition-all ${distributingIds.size===students.length&&students.length>0 ? "text-amber-500" : "text-gray-400 hover:text-indigo-500"}`}>
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </th>
-                <th className="w-20 px-3 py-3 text-center border-l border-gray-100">Foiz</th>
-                <th className="w-16 px-3 py-3 text-center">X</th>
+                <th className="w-20 px-3 py-3 text-center border-l border-gray-100">{t("bsb_chsb.percent", lang)}</th>
+                <th className="w-16 px-3 py-3 text-center">{t("bsb_chsb.delete", lang)}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -574,21 +632,21 @@ export default function BsbChsbPage() {
                         <input ref={el=>{inputRefs.current[`name-${row}-0`]=el;}} type="text" value={student.name}
                           onChange={e=>{const a=[...students]; a[row]={...a[row],name:e.target.value}; setReport(p=>({...p,students:a}));}}
                           onBlur={sortStudents} onKeyDown={e=>handleKeyDown(e,row,0,"name")}
-                          placeholder="F.I.SH." className="w-full bg-transparent text-sm font-medium text-gray-900 outline-none" />
+                          placeholder={t("bsb_chsb.name_placeholder", lang)} className="w-full min-h-[44px] lg:min-h-0 bg-transparent px-2 lg:px-0 text-sm font-medium text-gray-900 outline-none" />
                       </div>
                     </td>
                     {student.scores.map((score,col) => (
                       <td key={col} className="border-l border-gray-100 px-2 py-2 text-center">
                         {reportType==="BSB" ? (
-                          <input ref={el=>{inputRefs.current[`score-${row}-${col}`]=el;}} type="number" inputMode="decimal"
+                          <input ref={el=>{inputRefs.current[`score-${row}-${col}`]=el;}} type="text" inputMode="decimal"
                             value={score===0?"":score} readOnly={isDist}
-                            onChange={e=>updateStudentScore(row,col,parseFloat(e.target.value)||0)}
+                            onChange={e=>updateStudentScore(row,col,parseFloat(String(e.target.value).replace(',','.'))||0)}
                             onKeyDown={e=>handleKeyDown(e,row,col,"score")}
-                            className={`h-9 w-12 rounded-lg border border-gray-200 text-center text-sm font-bold outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${isDist ? "bg-gray-100 text-gray-400" : "bg-white text-gray-900"}`} />
+                            className={`min-h-[44px] lg:h-9 w-12 rounded-lg border border-gray-200 text-center text-sm font-bold outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${isDist ? "bg-gray-100 text-gray-400" : "bg-white text-gray-900"}`} />
                         ) : (
                           <button ref={el=>{(inputRefs as any).current[`score-${row}-${col}`]=el;}} onClick={()=>toggleChsbScore(row,col)}
                             onKeyDown={e=>handleKeyDown(e,row,col,"score")}
-                            className={`flex h-9 w-12 items-center justify-center rounded-lg border-2 transition-all ${score>0 ? "border-blue-200 bg-blue-50 text-blue-600" : "border-gray-200 text-gray-300 hover:border-gray-300"}`}>
+                            className={`flex min-h-[44px] lg:h-9 w-12 items-center justify-center rounded-lg border-2 transition-all ${score>0 ? "border-blue-200 bg-blue-50 text-blue-600" : "border-gray-200 text-gray-300 hover:border-gray-300"}`}>
                             {score>0 ? <Check className="h-4 w-4" strokeWidth={3}/> : <X className="h-4 w-4" />}
                           </button>
                         )}
@@ -600,7 +658,7 @@ export default function BsbChsbPage() {
                           <button onClick={()=>toggleDistribution(student.id)} className="absolute left-1 top-1/2 -translate-y-1/2 rounded-md border border-blue-200 bg-white p-1 shadow-sm text-blue-600"><ChevronDown className="h-3 w-3" /></button>
                         ) : null}
                         {isDist ? (
-                          <input ref={el=>{inputRefs.current[`total-${row}-0`]=el;}} type="number" step="0.1" value={total||""}
+                          <input ref={el=>{inputRefs.current[`total-${row}-0`]=el;}} type="text" inputMode="decimal" value={total||""}
                             onChange={e=>handleTotalChange(row,e.target.value)} onKeyDown={e=>handleKeyDown(e,row,0,"total")}
                             className="h-9 w-20 rounded-lg border border-amber-300 bg-amber-50 text-center text-sm font-bold text-amber-800 outline-none" placeholder="..." />
                         ) : (
@@ -622,14 +680,14 @@ export default function BsbChsbPage() {
             </tbody>
             <tfoot className="border-t-2 border-gray-200 bg-gray-50 text-xs font-semibold">
               <tr className="text-indigo-700">
-                <td colSpan={2} className="px-4 py-3 text-right uppercase tracking-wider">O'zlashtirish (%):</td>
+                <td colSpan={2} className="px-4 py-3 text-right uppercase tracking-wider">{t("bsb_chsb.percent_footer", lang)}</td>
                 {maxScores.map((_,i) => <td key={i} className="border-l border-gray-100 px-3 py-3 text-center">{colStats[i].pct.toFixed(0)}%</td>)}
                 <td className="border-l border-gray-100 px-3 py-3 text-center font-bold">{overallPercent}%</td>
                 <td className="border-l border-gray-100 px-3 py-3 text-center">{overallPercent}%</td>
                 <td></td>
               </tr>
               <tr className="text-emerald-700">
-                <td colSpan={2} className="px-4 py-3 text-right uppercase tracking-wider">O'rtacha ball:</td>
+                <td colSpan={2} className="px-4 py-3 text-right uppercase tracking-wider">{t("bsb_chsb.avg_score", lang)}</td>
                 {maxScores.map((_,i) => <td key={i} className="border-l border-gray-100 px-3 py-3 text-center">{colStats[i].avg.toFixed(1)}</td>)}
                 <td className="border-l border-gray-100 px-3 py-3 text-center font-bold">{(students.reduce((s,st)=>s+st.scores.reduce((a,b)=>a+b,0),0)/(studentCount||1)).toFixed(1)}</td>
                 <td className="border-l border-gray-100 px-3 py-3 text-center">{overallPercent}%</td>
@@ -643,16 +701,16 @@ export default function BsbChsbPage() {
       {/* Signatures */}
       {!fullscreen && (
         <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-6 text-center text-xs font-bold uppercase tracking-wider text-gray-500">Tasdiqlash (Imzolar)</h3>
+          <h3 className="mb-6 text-center text-xs font-bold uppercase tracking-wider text-gray-500">{t("bsb_chsb.signatures", lang)}</h3>
           <div className="grid gap-6 md:grid-cols-3">
             {(["oibdo","metodist","teacher"] as const).map(key => (
               <div key={key} className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  {key==="oibdo" ? "O'IBDO'" : key==="metodist" ? "Metodbirlashma rahbari" : "Fan o'qituvchisi"}
+                  {key==="oibdo" ? t("bsb_chsb.sig_oibdo", lang) : key==="metodist" ? t("bsb_chsb.sig_methodist", lang) : t("bsb_chsb.sig_teacher", lang)}
                 </label>
                 <input type="text" value={report.signatures[key]}
                   onChange={e=>setReport(p=>({...p,signatures:{...p.signatures,[key]:e.target.value}}))}
-                  className={inputStyle} placeholder="F.I.SH." />
+                  className={inputStyle} placeholder={t("bsb_chsb.name_placeholder", lang)} />
               </div>
             ))}
           </div>
@@ -665,11 +723,11 @@ export default function BsbChsbPage() {
           <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl">
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-500"><RotateCcw className="h-8 w-8" /></div>
-              <h3 className="mb-2 text-lg font-bold text-gray-900">Ma'lumotlar o'chirilsinmi?</h3>
-              <p className="mb-6 text-sm text-gray-500">Barcha ballar va o'quvchilar ro'yxati tozalanadi.</p>
+              <h3 className="mb-2 text-lg font-bold text-gray-900">{t("bsb_chsb.reset_title", lang)}</h3>
+              <p className="mb-6 text-sm text-gray-500">{t("bsb_chsb.reset_text", lang)}</p>
               <div className="flex gap-3">
-                <button onClick={()=>setShowResetConfirm(false)} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Bekor qilish</button>
-                <button onClick={resetReport} className="flex-1 rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-amber-600">Tasdiqlash</button>
+                <button onClick={()=>setShowResetConfirm(false)} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">{t("bsb_chsb.cancel", lang)}</button>
+                <button onClick={resetReport} className="flex-1 rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-amber-600">{t("bsb_chsb.confirm", lang)}</button>
               </div>
             </div>
           </div>
@@ -682,71 +740,23 @@ export default function BsbChsbPage() {
           <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl">
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-500"><Trash2 className="h-8 w-8" /></div>
-              <h3 className="mb-2 text-lg font-bold text-gray-900">O'chirilsinmi?</h3>
-              <p className="mb-6 text-sm text-gray-500">"<span className="font-bold text-gray-800">{students.find(s=>s.id===deleteTarget)?.name}</span>" ro'yxatdan olib tashlanadi.</p>
+              <h3 className="mb-2 text-lg font-bold text-gray-900">{t("bsb_chsb.delete_title", lang)}</h3>
+              <p className="mb-6 text-sm text-gray-500">"<span className="font-bold text-gray-800">{students.find(s=>s.id===deleteTarget)?.name}</span>" {t("bsb_chsb.delete_text", lang)}</p>
               <div className="flex gap-3">
-                <button onClick={()=>setDeleteTarget(null)} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Bekor qilish</button>
-                <button onClick={()=>deleteStudent(deleteTarget)} className="flex-1 rounded-xl bg-red-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-red-600">Tasdiqlash</button>
+                <button onClick={()=>setDeleteTarget(null)} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">{t("bsb_chsb.cancel", lang)}</button>
+                <button onClick={()=>deleteStudent(deleteTarget)} className="flex-1 rounded-xl bg-red-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-red-600">{t("bsb_chsb.confirm", lang)}</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* DB Modal */}
-      {showDbModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-gray-100 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white shadow-md"><Users className="h-5 w-5" /></div>
-                <h3 className="text-lg font-bold text-gray-900">O'quvchilar ro'yxati</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={copyDbCode}
-                  className={`rounded-xl border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${copied ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-blue-200 text-blue-600 hover:bg-blue-50"}`}>
-                  {copied ? <><CheckCheck className="mr-1.5 inline h-3.5 w-3.5" />Nusxalandi</> : <><Copy className="mr-1.5 inline h-3.5 w-3.5" />Kodni nusxalash</>}
-                </button>
-                <button onClick={()=>exportDbExcel(db)} className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-600 transition-all hover:bg-gray-50">
-                  <Download className="mr-1.5 inline h-3.5 w-3.5" />Excel
-                </button>
-                <button onClick={()=>setShowDbModal(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"><X className="h-5 w-5" /></button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <div className="mb-4 grid gap-4 sm:grid-cols-2">
-                <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">Sinf</label>
-                  <select value={dbClass} onChange={e=>handleDbClassChange(e.target.value)} className={selectStyle}>
-                    {Object.keys(db).map(c=><option key={c} value={c}>{c.toUpperCase()}-sinf</option>)}
-                  </select>
-                </div>
-                <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">Guruh</label>
-                  <select value={dbGroup} onChange={e=>setDbGroup(e.target.value)} className={selectStyle}>
-                    {getGroups(db,dbClass).map(g=><option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">Yangi o'quvchi</label>
-                <div className="flex gap-2">
-                  <input type="text" value={newStudentName} onChange={e=>setNewStudentName(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&addStudentToDb()} placeholder="Familiya Ism Sharif..."
-                    className="flex-1 rounded-xl border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm font-medium outline-none transition-all focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
-                  <button onClick={addStudentToDb} className={btnPrimary.replace("from-indigo-600 to-blue-600","from-emerald-600 to-emerald-700")}><Plus className="h-4 w-4" /> Qo'shish</button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                {(db[dbClass]?.[dbGroup]||[]).sort(uzbekSort).map((name,i) => (
-                  <div key={name} className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 transition-all hover:border-indigo-200 hover:bg-white">
-                    <span className="text-sm font-medium text-gray-800">{i+1}. {name}</span>
-                    <button onClick={()=>removeStudentFromDb(name)} className="rounded-lg p-2 text-red-300 transition-all hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="flex justify-end border-t border-gray-100 px-6 py-4">
-              <button onClick={()=>setShowDbModal(false)} className="rounded-xl bg-indigo-600 px-8 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-indigo-700">Tayyor</button>
-            </div>
+      {/* Saved toast notification */}
+      {savedToast && (
+        <div className="fixed bottom-6 right-6 z-[200] animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="flex items-center gap-3 rounded-2xl bg-emerald-600 px-5 py-3.5 text-white shadow-2xl">
+            <Check className="h-5 w-5" />
+            <span className="text-sm font-semibold">{t("bsb_chsb.saved_msg", lang)}</span>
           </div>
         </div>
       )}

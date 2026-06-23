@@ -1,0 +1,2 @@
+ALTER TABLE School ADD COLUMN district TEXT NOT NULL DEFAULT '';
+

@@ -12,6 +12,9 @@ export default function SettingsPage() {
   useEffect(() => {
     const saved = document.cookie.match(/(?:^|;\s*)lang=([^;]*)/)?.[1] as Lang | undefined;
     if (saved) setLang(saved);
+    const handler = (e: CustomEvent) => setLang(e.detail as Lang);
+    window.addEventListener('langchange', handler as EventListener);
+    return () => window.removeEventListener('langchange', handler as EventListener);
   }, []);
 
   function handleSave(e: React.FormEvent) {
@@ -23,7 +26,7 @@ export default function SettingsPage() {
   function switchLang(l: Lang) {
     setLang(l);
     document.cookie = `lang=${l};path=/;max-age=31536000`;
-    window.location.reload();
+    window.dispatchEvent(new CustomEvent('langchange', { detail: l }));
   }
 
   return (
