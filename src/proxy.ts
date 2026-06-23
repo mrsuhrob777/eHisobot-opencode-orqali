@@ -21,7 +21,11 @@ export function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith("/login")) {
-    if (!token) return NextResponse.next();
+    if (!token) {
+      const res = NextResponse.next();
+      res.headers.set("Cache-Control", "no-store, must-revalidate");
+      return res;
+    }
     try {
       const jwt = require("jsonwebtoken");
       const payload = jwt.verify(token, process.env.JWT_SECRET || "super-secret-key-change-in-production");
