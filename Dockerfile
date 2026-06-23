@@ -1,9 +1,10 @@
 FROM node:20-alpine AS base
+RUN apk add --no-cache python3 make g++
 
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 FROM base AS builder
 WORKDIR /app
