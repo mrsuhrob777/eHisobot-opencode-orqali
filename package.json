@@ -24,9 +24,6 @@
     "xlsx-js-style": "^1.2.0",
     "zod": "^4.4.3"
   },
-  "prisma": {
-    "seed": "node --import tsx prisma/seed.ts"
-  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
