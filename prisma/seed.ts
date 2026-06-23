@@ -3,11 +3,19 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import bcrypt from "bcryptjs";
 import path from "path";
 
-const dbPath = path.resolve("C:\\Users\\user\\Desktop\\login-app\\dev.db");
-const adapter = new PrismaBetterSqlite3({ url: dbPath });
+const dbUrl = process.env.DATABASE_URL || "file:./dev.db";
+const dbPath = dbUrl.replace("file:", "");
+const resolvedPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
+const adapter = new PrismaBetterSqlite3({ url: resolvedPath });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  const existing = await prisma.user.count();
+  if (existing > 0) {
+    console.log("✅ Seed: database already has users, skipping");
+    return;
+  }
+
   const adminHash = await bcrypt.hash("admin123", 10);
   const userHash = await bcrypt.hash("123456", 10);
   const dilraboHash = await bcrypt.hash("dilrabo", 10);
@@ -25,9 +33,9 @@ async function main() {
   });
 
   const users = [
-    { login: "dilrabo", fullName: "Dilrabo", role: "teacher", password: dilraboHash },
-    { login: "director37", fullName: "Aliyev B.", role: "director", password: userHash },
-    { login: "deputy37", fullName: "Rustamov C.", role: "deputy_director", password: userHash },
+    { login: "dilrabo", fullName: "Dilrabo", role: "teacher" as const, password: dilraboHash },
+    { login: "director37", fullName: "Aliyev B.", role: "director" as const, password: userHash },
+    { login: "deputy37", fullName: "Rustamov C.", role: "deputy_director" as const, password: userHash },
   ];
 
   for (const u of users) {
@@ -38,15 +46,6 @@ async function main() {
     });
   }
 
-  for (const u of users) {
-    await prisma.user.upsert({
-      where: { login: u.login },
-      update: {},
-      create: { ...u, password: userHash, schoolId: school.id },
-    });
-  }
-
-  // Second school
   const school2 = await prisma.school.upsert({
     where: { id: "demo-school-2" },
     update: {},
