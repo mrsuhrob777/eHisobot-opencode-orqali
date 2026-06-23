@@ -12,6 +12,10 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("session")?.value;
   const { pathname } = request.nextUrl;
 
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
+
   if (pathname === "/" || (!token && !pathname.startsWith("/login"))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }

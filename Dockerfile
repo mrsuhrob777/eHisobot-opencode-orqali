@@ -34,4 +34,4 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-CMD ["sh", "-c", "npx prisma db push --skip-generate 2>&1; npm run start"]
+CMD ["sh", "-c", "npx prisma db push 2>&1; npm run start"]
