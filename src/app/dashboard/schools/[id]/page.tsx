@@ -27,7 +27,7 @@ export default async function SchoolDetailPage({ params }: { params: Promise<{ i
           </div>
           <div className="flex gap-2">
             <form action={async () => { "use server"; await deleteSchool(id); redirect("/dashboard/schools"); }}>
-              <button type="submit" className="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">{t("schools.delete", lang)}</button>
+              <button type="submit" className="touch-target rounded-xl border border-red-200 px-4 text-sm font-medium text-red-600 hover:bg-red-50">{t("schools.delete", lang)}</button>
             </form>
           </div>
         </div>

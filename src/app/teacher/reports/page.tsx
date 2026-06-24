@@ -3,7 +3,7 @@
 import { t, type Lang } from "@/lib/i18n";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { getReports, deleteReport } from "@/actions/reports";
+import { getReports, deleteReport, getAnnualReportList, deleteAnnualReport } from "@/actions/reports";
 import { getTeacherData } from "@/actions/school-management";
 import { FileText, Trash2, Download, Eye, AlertTriangle, X, Copy, Plus, LayoutGrid, List, ChevronDown } from "lucide-react";
 
@@ -17,6 +17,9 @@ type ReportItem = {
   title: string;
   data: string;
   createdAt: string;
+  subject?: string;
+  year?: string;
+  teacherName?: string;
 };
 
 async function exportReportExcel(report: ReportItem, lang: Lang) {
@@ -174,7 +177,7 @@ export default function ReportsPage() {
   const [lang, setLang] = useState<Lang>("uz");
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"BSB" | "CHSB">("BSB");
+  const [filter, setFilter] = useState<"BSB" | "CHSB" | "ANNUAL">("BSB");
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [classFilter, setClassFilter] = useState<string>("all");
@@ -200,6 +203,7 @@ export default function ReportsPage() {
   };
 
   const getYearFromReport = (r: ReportItem): string => {
+    if (r.type === "ANNUAL" && r.year) return r.year;
     try {
       const d = JSON.parse(r.data);
       if (d.config?.date) return getSchoolYear(d.config.date);
@@ -219,6 +223,11 @@ export default function ReportsPage() {
 
   const filtered = reports.filter(r => {
     if (r.type !== filter) return false;
+    if (r.type === "ANNUAL") {
+      if (subjectFilter !== "all" && r.subject !== subjectFilter) return false;
+      if (yearFilter !== "all" && getYearFromReport(r) !== yearFilter) return false;
+      return true;
+    }
     if (subjectFilter !== "all") { try { if (JSON.parse(r.data).config?.subject !== subjectFilter) return false; } catch { return false; } }
     if (yearFilter !== "all") { if (getYearFromReport(r) !== yearFilter) return false; }
     if (classFilter !== "all") { try { if (JSON.parse(r.data).config?.classLevel !== classFilter) return false; } catch { return false; } }
@@ -254,19 +263,37 @@ export default function ReportsPage() {
   }, []);
 
   useEffect(() => {
-    getReports().then(r => {
-      const list = Array.isArray(r) ? r : r.data;
-      setReports(list as unknown as ReportItem[]);
-      setLoading(false);
-    });
+    setLoading(true);
+    if (filter === "ANNUAL") {
+      getAnnualReportList().then(list => {
+        const mapped: ReportItem[] = list.map((r: any) => ({
+          id: r.id,
+          type: "ANNUAL",
+          title: r.title,
+          data: r.data,
+          createdAt: r.createdAt,
+          subject: r.subject,
+          year: r.year,
+          teacherName: r.teacherName,
+        }));
+        setReports(mapped);
+        setLoading(false);
+      });
+    } else {
+      getReports().then(r => {
+        const list = Array.isArray(r) ? r : r.data;
+        setReports(list as unknown as ReportItem[]);
+        setLoading(false);
+      });
+    }
     getTeacherData().then(res => {
       if (res.data) setTeacherClasses(res.data.classes);
     });
-  }, []);
+  }, [filter]);
 
   useEffect(() => {
     const u = new URL(window.location.href);
-    if (u.searchParams.get("type")) setFilter(u.searchParams.get("type") as "BSB" | "CHSB");
+    if (u.searchParams.get("type")) setFilter(u.searchParams.get("type") as "BSB" | "CHSB" | "ANNUAL");
     if (u.searchParams.get("subject")) setSubjectFilter(u.searchParams.get("subject")!);
     if (u.searchParams.get("year")) setYearFilter(u.searchParams.get("year")!);
     if (u.searchParams.get("class")) setClassFilter(u.searchParams.get("class")!);
@@ -370,8 +397,13 @@ export default function ReportsPage() {
   };
 
   const handleBulkDelete = async () => {
+    const first = reports.find(r => selectedIds.has(r.id));
+    const isAnnual = first?.type === "ANNUAL";
     for (const id of selectedIds) {
-      try { await deleteReport(id); } catch {}
+      try {
+        if (isAnnual) await deleteAnnualReport(id);
+        else await deleteReport(id);
+      } catch {}
     }
     setReports(prev => prev.filter(r => !selectedIds.has(r.id)));
     setSelectedIds(new Set());
@@ -449,6 +481,7 @@ export default function ReportsPage() {
                   </svg>
                 </div>
               </div>
+              {filter !== "ANNUAL" && (
               <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg">
                 <button onClick={() => setViewMode("quarter")}
                   className={`p-2 rounded-md transition-all ${viewMode === "quarter" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
@@ -461,6 +494,7 @@ export default function ReportsPage() {
                   <List className="h-5 w-5" />
                 </button>
               </div>
+              )}
             </div>
           );
         })()}
@@ -468,7 +502,10 @@ export default function ReportsPage() {
 
       {/* Subject + BSB/ChSB: same row on desktop, stacked on mobile */}
       {(() => {
-        const subjects = [...new Set(reports.map(r => { try { return JSON.parse(r.data).config?.subject; } catch { return null; } }).filter(Boolean))] as string[];
+        const subjects = [...new Set(reports.map(r => { 
+          if (r.type === "ANNUAL" && r.subject) return r.subject;
+          try { return JSON.parse(r.data).config?.subject; } catch { return null; } 
+        }).filter(Boolean))] as string[];
         const hasSubjects = subjects.length > 0;
         const bsbChips = (
           <div className="flex gap-1.5">
@@ -491,6 +528,16 @@ export default function ReportsPage() {
               }`}
             >
               ChSB
+            </button>
+            <button
+              onClick={() => setFilter("ANNUAL")}
+              className={`flex-1 sm:flex-none px-4 py-1.5 min-h-[40px] rounded-full text-xs font-semibold transition-all duration-200 select-none border ${
+                filter === "ANNUAL"
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
+              }`}
+            >
+              Yillik
             </button>
           </div>
         );
@@ -548,6 +595,7 @@ export default function ReportsPage() {
       <div className="border-b border-gray-200 mb-4" />
 
       {/* Class filter chips */}
+      {filter !== "ANNUAL" && (
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {viewMode === "list" ? (
@@ -606,9 +654,10 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+      )}
 
       {(() => {
-        if (!hasAnyReports) return (
+        if (!hasAnyReports && filter !== "ANNUAL") return (
           <div className="rounded-2xl border border-gray-100 bg-white p-12 shadow-sm">
             <div className="flex flex-col items-center justify-center text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-50 text-gray-300">
@@ -621,6 +670,83 @@ export default function ReportsPage() {
                 <Plus className="h-4 w-4" /> {t("common.create_report", lang)}
               </button>
             </div>
+          </div>
+        );
+        if (filter === "ANNUAL") return (
+          <div className="space-y-2">
+            {reports.length === 0 && (
+              <div className="rounded-2xl border border-gray-100 bg-white p-12 shadow-sm">
+                <div className="flex flex-col items-center justify-center text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-50 text-gray-300">
+                    <FileText className="h-8 w-8" />
+                  </div>
+                  <h3 className="mb-1 text-lg font-semibold text-gray-900">{t("reports.no_reports", lang)}</h3>
+                  <p className="mb-6 text-sm text-gray-400">{t("bsb_chsb.teacher_panel", lang)}</p>
+                </div>
+              </div>
+            )}
+            {sortedList.map((report, idx) => {
+              const checked = selectedIds.has(report.id);
+              return (
+                <div key={report.id}
+                  data-report-idx={idx}
+                  onPointerDown={(e) => handlePointerDown(e, idx)}
+                  style={{ touchAction: 'none' }}
+                  className={`rounded-xl border p-3 sm:p-4 shadow-sm transition-all select-none ${
+                    checked
+                      ? "border-indigo-300 bg-indigo-50/50 shadow-md"
+                      : "border-gray-100 bg-white hover:shadow-md hover:border-gray-200"
+                  }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-start gap-2 flex-1 min-w-0 pointer-events-none">
+                      <div className="flex items-center gap-2">
+                        <div className={`flex h-[18px] w-[18px] items-center justify-center rounded-[5px] border-2 transition-all duration-150 ${
+                          checked
+                            ? "border-indigo-500 bg-indigo-500"
+                            : "border-gray-300 bg-white"
+                        }`}>
+                          {checked && (
+                            <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[11px] font-bold bg-emerald-100 text-emerald-700`}>
+                          Y
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-bold text-gray-900 truncate">{report.title}</h3>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                          {report.subject && <span>{report.subject}</span>}
+                          {report.subject && report.year && <span className="h-1 w-1 rounded-full bg-gray-300" />}
+                          {report.year && <span>{report.year}</span>}
+                          <span className="h-1 w-1 rounded-full bg-gray-300" />
+                          <span>{new Date(report.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0"
+                      onPointerDown={(e) => { e.stopPropagation(); dragRef.current = null; }}>
+                      <button onClick={() => window.open(`/teacher/annual-report?reportId=${report.id}&standalone=true`, '_blank')}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600"
+                        title={t("reports.view", lang)}>
+                        <Eye className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("reports.view", lang)}</span>
+                      </button>
+                      <button onClick={async () => {
+                        await deleteAnnualReport(report.id);
+                        setReports(prev => prev.filter(r => r.id !== report.id));
+                        setSelectedIds(prev => { const n = new Set(prev); n.delete(report.id); return n; });
+                      }}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-red-500 shadow-sm transition-all hover:bg-red-50"
+                        title={t("reports.delete", lang)}>
+                        <Trash2 className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("reports.delete", lang)}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         );
         if (viewMode === "list") return (
@@ -685,21 +811,25 @@ export default function ReportsPage() {
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0"
                       onPointerDown={(e) => { e.stopPropagation(); dragRef.current = null; }}>
-                      <button onClick={() => router.push(`/teacher/bsb-chsb?reportId=${report.id}`)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600">
-                        <Eye className="h-3 w-3" /> {t("reports.view", lang)}
+                      <button onClick={() => window.open(`/teacher/bsb-chsb?reportId=${report.id}&standalone=true`, '_blank')}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600"
+                        title={t("reports.view", lang)}>
+                        <Eye className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("reports.view", lang)}</span>
                       </button>
                       <button onClick={() => handleDownload(report)} disabled={downloading === report.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:shadow-md hover:scale-[1.02] disabled:opacity-50">
-                        <Download className="h-3 w-3" /> {downloading === report.id ? "..." : t("reports.download", lang)}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-white shadow-sm transition-all hover:shadow-md hover:scale-[1.02] disabled:opacity-50"
+                        title={t("reports.download", lang)}>
+                        <Download className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-semibold">{downloading === report.id ? "..." : t("reports.download", lang)}</span>
                       </button>
                       <button onClick={() => handleDuplicate(report)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600">
-                        <Copy className="h-3 w-3" /> {t("common.duplicate", lang)}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600"
+                        title={t("common.duplicate", lang)}>
+                        <Copy className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("common.duplicate", lang)}</span>
                       </button>
                       <button onClick={() => handleDelete(report.id)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-[11px] font-medium text-red-500 transition-all hover:bg-red-50">
-                        <Trash2 className="h-3 w-3" /> {t("reports.delete", lang)}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-red-500 shadow-sm transition-all hover:bg-red-50"
+                        title={t("reports.delete", lang)}>
+                        <Trash2 className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("reports.delete", lang)}</span>
                       </button>
                     </div>
                   </div>
@@ -884,21 +1014,25 @@ export default function ReportsPage() {
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0"
                             onPointerDown={(e) => { e.stopPropagation(); dragRef.current = null; }}>
-                            <button onClick={() => router.push(`/teacher/bsb-chsb?reportId=${report.id}`)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600">
-                              <Eye className="h-3 w-3" /> {t("reports.view", lang)}
+                            <button onClick={() => window.open(`/teacher/bsb-chsb?reportId=${report.id}&standalone=true`, '_blank')}
+                              className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600"
+                              title={t("reports.view", lang)}>
+                              <Eye className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("reports.view", lang)}</span>
                             </button>
                             <button onClick={() => handleDownload(report)} disabled={downloading === report.id}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:shadow-md hover:scale-[1.02] disabled:opacity-50">
-                              <Download className="h-3 w-3" /> {downloading === report.id ? "..." : t("reports.download", lang)}
+                              className="inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-white shadow-sm transition-all hover:shadow-md hover:scale-[1.02] disabled:opacity-50"
+                              title={t("reports.download", lang)}>
+                              <Download className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-semibold">{downloading === report.id ? "..." : t("reports.download", lang)}</span>
                             </button>
                             <button onClick={() => handleDuplicate(report)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600">
-                              <Copy className="h-3 w-3" /> {t("common.duplicate", lang)}
+                              className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600"
+                              title={t("common.duplicate", lang)}>
+                              <Copy className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("common.duplicate", lang)}</span>
                             </button>
                             <button onClick={() => handleDelete(report.id)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-[11px] font-medium text-red-500 transition-all hover:bg-red-50">
-                              <Trash2 className="h-3 w-3" /> {t("reports.delete", lang)}
+                              className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 min-h-[36px] min-w-[36px] sm:px-2.5 sm:py-1.5 sm:min-h-0 sm:min-w-0 text-red-500 shadow-sm transition-all hover:bg-red-50"
+                              title={t("reports.delete", lang)}>
+                              <Trash2 className="h-3.5 w-3.5" /><span className="hidden sm:inline text-[11px] font-medium">{t("reports.delete", lang)}</span>
                             </button>
                           </div>
                         </div>

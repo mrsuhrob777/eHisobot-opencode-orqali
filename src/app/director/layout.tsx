@@ -4,7 +4,7 @@ import { logout } from "@/actions/auth";
 import { t, type Lang } from "@/lib/i18n";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, BarChart3, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, BarChart3, LogOut, User } from "lucide-react";
 
 export default function DirectorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -65,6 +65,12 @@ export default function DirectorLayout({ children }: { children: React.ReactNode
             }`}>
             <BarChart3 className="h-5 w-5" /> Yillik hisobotlar
           </a>
+          <a href="/director/profile"
+            className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+              pathname === "/director/profile" ? "bg-violet-50 text-violet-700" : "text-gray-600 hover:bg-violet-50 hover:text-violet-700"
+            }`}>
+            <User className="h-5 w-5" /> {t("sidebar.profile", lang)}
+          </a>
         </nav>
         <div className="border-t border-gray-100 p-3">
           <div className="mb-2 px-4 py-2">
@@ -106,13 +112,13 @@ export default function DirectorLayout({ children }: { children: React.ReactNode
           <div className="flex items-center gap-2 lg:hidden">
             <form action={logout}>
               <button type="submit"
-                className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all">
+                className="flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all touch-target px-3">
                 <LogOut className="h-4 w-4" />
               </button>
             </form>
             <div className="relative" data-lang="true">
               <button onClick={() => setLangOpen(!langOpen)}
-                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white pl-1.5 pr-2 py-1.5 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-violet-300">
+                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-violet-300 touch-target">
                 <span className="flex items-center gap-1">{lang === "uz" ? <>{langBadge("uz")}</> : lang === "en" ? <>{langBadge("en")}</> : <>{langBadge("ru")}</>}</span>
                 <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -148,25 +154,32 @@ export default function DirectorLayout({ children }: { children: React.ReactNode
       {/* Mobile Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-gray-200 bg-white lg:hidden safe-area-bottom">
         <a href="/director"
-          className={`flex flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors min-w-0 ${
+          className={`mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors ${
             pathname === "/director" ? 'text-violet-600' : 'text-gray-500'
           }`}>
           <LayoutDashboard className={`h-5 w-5 ${pathname === "/director" ? 'text-violet-600' : ''}`} />
           <span className="truncate max-w-[56px] text-center leading-tight">{t("sidebar.dashboard", lang)}</span>
         </a>
         <a href="/director/reports"
-          className={`flex flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors min-w-0 ${
+          className={`mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors ${
             pathname.startsWith("/director/reports") ? 'text-violet-600' : 'text-gray-500'
           }`}>
           <FileText className={`h-5 w-5 ${pathname.startsWith("/director/reports") ? 'text-violet-600' : ''}`} />
           <span className="truncate max-w-[56px] text-center leading-tight">BSB/CHSB</span>
         </a>
         <a href="/director/annual-reports"
-          className={`flex flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors min-w-0 ${
+          className={`mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors ${
             pathname.startsWith("/director/annual-reports") ? 'text-violet-600' : 'text-gray-500'
           }`}>
           <BarChart3 className={`h-5 w-5 ${pathname.startsWith("/director/annual-reports") ? 'text-violet-600' : ''}`} />
           <span className="truncate max-w-[56px] text-center leading-tight">Yillik</span>
+        </a>
+        <a href="/director/profile"
+          className={`mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors ${
+            pathname === "/director/profile" ? 'text-violet-600' : 'text-gray-500'
+          }`}>
+          <User className={`h-5 w-5 ${pathname === "/director/profile" ? 'text-violet-600' : ''}`} />
+          <span className="truncate max-w-[56px] text-center leading-tight">{t("sidebar.profile", lang)}</span>
         </a>
       </nav>
     </div>

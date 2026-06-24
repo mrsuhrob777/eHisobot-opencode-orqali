@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import { logout, getCurrentUser } from "@/actions/auth";
 import { t, type Lang } from "@/lib/i18n";
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, LogOut, Search } from "lucide-react";
+import { LayoutDashboard, Building2, LogOut, Search, User } from "lucide-react";
 
-type UserInfo = { id: string; fullName: string; login: string; role: string; schoolId: string | null } | null;
+type UserInfo = { id: string; fullName: string; login: string; role: string; schoolId: string | null; avatar: string | null } | null;
 
 const navItems = [
   { href: "/dashboard", labelKey: "sidebar.dashboard", icon: LayoutDashboard },
   { href: "/dashboard/schools", labelKey: "sidebar.schools", icon: Building2 },
+  { href: "/dashboard/profile", labelKey: "sidebar.profile", icon: User },
 ];
 
 
@@ -109,13 +110,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="flex items-center gap-2 lg:hidden">
             <form action={logout}>
               <button type="submit"
-                className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all">
+                className="flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all touch-target px-3">
                 <LogOut className="h-4 w-4" />
               </button>
             </form>
             <div className="relative" data-lang="true">
               <button onClick={() => setLangOpen(!langOpen)}
-                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white pl-1.5 pr-2 py-1.5 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-indigo-300">
+                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-indigo-300 touch-target">
                 <span className="flex items-center gap-1">{lang === "uz" ? <>{langBadge("uz")}</> : lang === "en" ? <>{langBadge("en")}</> : <>{langBadge("ru")}</>}</span>
                 <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -144,8 +145,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <input type="text" placeholder={t("header.search", lang)} className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
           </div>
           <div className="flex items-center gap-2 lg:gap-3">
-            <div className="flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white">
-              {user ? user.fullName.charAt(0).toUpperCase() : "U"}
+            <div className="flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white overflow-hidden">
+              {user?.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : (user ? user.fullName.charAt(0).toUpperCase() : "U")}
             </div>
             <div className="hidden sm:block text-sm">
               <p className="font-medium text-gray-900">{user?.fullName || t("role.admin", lang)}</p>
@@ -163,7 +164,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors min-w-0 ${
+              className={`mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors ${
                 isActive ? 'text-indigo-600' : 'text-gray-500'
               }`}>
               <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-600' : ''}`} />

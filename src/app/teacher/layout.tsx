@@ -1,23 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { logout, getCurrentUser } from "@/actions/auth";
 import { t, type Lang } from "@/lib/i18n";
 import { useState, useEffect } from "react";
 import { LayoutDashboard, FileText, BarChart3, ScrollText, LogOut, User } from "lucide-react";
 
-type UserInfo = { id: string; fullName: string; login: string; role: string; schoolId: string | null } | null;
+type UserInfo = { id: string; fullName: string; login: string; role: string; schoolId: string | null; avatar: string | null } | null;
 
 const navItems = [
   { href: "/teacher", labelKey: "sidebar.dashboard", icon: LayoutDashboard },
   { href: "/teacher/reports", labelKey: "sidebar.reports", icon: ScrollText },
   { href: "/teacher/bsb-chsb", labelKey: "sidebar.bsb_chsb", icon: FileText },
   { href: "/teacher/annual-report", labelKey: "sidebar.annual_report", icon: BarChart3 },
+  { href: "/teacher/profile", labelKey: "sidebar.profile", icon: User },
 ];
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const standalone = searchParams.get('standalone') === 'true';
   const [lang, setLang] = useState<Lang>("uz");
   const [langOpen, setLangOpen] = useState(false);
   const [user, setUser] = useState<UserInfo>(null);
@@ -50,6 +53,10 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     return <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded text-[9px] font-bold bg-slate-100 text-slate-500">{map[l]}</span>;
   };
 
+
+  if (standalone) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -111,13 +118,13 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <div className="flex items-center gap-2 lg:hidden">
             <form action={logout}>
               <button type="submit"
-                className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all">
+                className="flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all touch-target px-3">
                 <LogOut className="h-4 w-4" />
               </button>
             </form>
             <div className="relative" data-lang="true">
               <button onClick={() => setLangOpen(!langOpen)}
-                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white pl-1.5 pr-2 py-1.5 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-emerald-300">
+                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-emerald-300 touch-target">
                 <span className="flex items-center gap-1">{lang === "uz" ? langBadge("uz") : lang === "en" ? langBadge("en") : langBadge("ru")}</span>
                 <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -143,8 +150,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           </div>
           <h2 className="text-base lg:text-lg font-bold text-gray-900">{t("role.teacher", lang)}</h2>
           <div className="flex items-center gap-2 lg:gap-3">
-            <div className="flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-sm font-bold text-white">
-              {user ? user.fullName.charAt(0).toUpperCase() : "U"}
+            <div className="flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-sm font-bold text-white overflow-hidden">
+              {user?.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : (user ? user.fullName.charAt(0).toUpperCase() : "U")}
             </div>
             <div className="hidden sm:block text-sm">
               <p className="font-medium text-gray-900">{user?.fullName || t("role.teacher", lang)}</p>
@@ -162,7 +169,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors min-w-0 ${
+              className={`mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors ${
                 isActive ? 'text-indigo-600' : 'text-gray-500'
               }`}>
               <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-600' : ''}`} />

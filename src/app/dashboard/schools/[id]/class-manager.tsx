@@ -429,6 +429,17 @@ export function ClassManager({
 
             {showImportStudents && (
               <div className="mb-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Har bir qatorga bitta ism</span>
+                  <a
+                    href="https://oquvchilarbazasi.netlify.app/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 transition-all hover:bg-indigo-100 hover:shadow-sm"
+                  >
+                    <Upload className="h-3 w-3" /> Bazani yaratish
+                  </a>
+                </div>
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}

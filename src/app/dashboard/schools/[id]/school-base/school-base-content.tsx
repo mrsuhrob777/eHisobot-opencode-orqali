@@ -161,9 +161,19 @@ export function SchoolBaseContent({
               Yopish
             </button>
           </div>
-          <p className="mb-3 text-xs text-gray-500">
-            Format: <code className="rounded bg-gray-100 px-1 py-0.5">Sinf nomi : guruh nomi (o'quvchi1 , o'quvchi2); guruh nomi (o'quvchi)</code>
-          </p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs text-gray-500">
+              Format: <code className="rounded bg-gray-100 px-1 py-0.5">Sinf nomi : guruh nomi (o'quvchi1 , o'quvchi2); guruh nomi (o'quvchi)</code>
+            </p>
+            <a
+              href="https://oquvchilarbazasi.netlify.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 transition-all hover:bg-indigo-100 hover:shadow-sm"
+            >
+              <Upload className="h-3 w-3" /> Bazani yaratish
+            </a>
+          </div>
           <textarea
             value={bulkText}
             onChange={(e) => setBulkText(e.target.value)}

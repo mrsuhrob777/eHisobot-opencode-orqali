@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
 import { Download, Trash2, PlusCircle, MinusCircle, Settings, X, Loader2, Save } from 'lucide-react';
-import { getAnnualReportDataBySubject, saveAnnualReport } from "@/actions/reports";
+import { getAnnualReportDataBySubject, saveAnnualReport, getAnnualReportById } from "@/actions/reports";
 import { getTeacherData } from "@/actions/school-management";
 import { t, type Lang } from "@/lib/i18n";
+import { useSearchParams } from "next/navigation";
 
 type RowData = {
   id: string;
@@ -39,20 +40,20 @@ const getDiff = (v2: string, v1: string) => {
 };
 
 const Cell = ({ value, onChange, onBlur, bold, colorKey, readonly, className = '' }: any) => {
-  let bgColor = 'bg-transparent';
-  let textColor = 'text-gray-900';
+  let bgStyle: React.CSSProperties | undefined;
+  let textStyle: React.CSSProperties | undefined;
 
   if (colorKey && readonly && value !== undefined && value !== '') {
     const num = parseFloat(String(value).replace(/\s/g, '').replace(',', '.'));
     if (num > 0) {
-      bgColor = 'bg-[#00b050]';
-      textColor = 'text-black';
+      bgStyle = { backgroundColor: '#00b050' };
+      textStyle = { color: '#000000' };
     } else if (num < 0) {
-      bgColor = 'bg-[#ff0000]';
-      textColor = 'text-black';
+      bgStyle = { backgroundColor: '#ff0000' };
+      textStyle = { color: '#000000' };
     } else {
-      bgColor = 'bg-[#ffff00]';
-      textColor = 'text-black';
+      bgStyle = { backgroundColor: '#ffff00' };
+      textStyle = { color: '#000000' };
     }
   }
 
@@ -62,16 +63,16 @@ const Cell = ({ value, onChange, onBlur, bold, colorKey, readonly, className = '
   const inputRingFocus = 'focus:ring-blue-600';
 
   return (
-    <td className={`border border-gray-400 p-0 relative ${bgColor} ${className}`}>
+    <td className={`border border-gray-400 p-0 relative ${className}`} style={bgStyle}>
       {readonly ? (
-        <div className={`w-full h-full min-h-[32px] lg:min-h-[32px] px-1 text-center font-sans text-[12px] lg:text-sm flex items-center justify-center ${bold ? 'font-bold' : ''} ${textColor}`}>
+        <div className={`w-full h-full min-h-[32px] lg:min-h-[32px] px-1 text-center font-sans text-[12px] lg:text-sm flex items-center justify-center text-gray-900 ${bold ? 'font-bold' : ''}`} style={textStyle}>
           {value}
         </div>
       ) : (
         <input 
           ref={inputRef}
           type="text"
-          className={`w-full h-full min-h-[32px] lg:min-h-[32px] px-1 text-center font-sans text-[12px] lg:text-sm outline-none focus:ring-2 ${inputRingFocus} ${inputBgFocus} focus:z-10 relative bg-transparent ${bold ? 'font-bold' : ''} ${textColor}`}
+          className={`w-full h-full min-h-[32px] lg:min-h-[32px] px-1 text-center font-sans text-[12px] lg:text-sm outline-none focus:ring-2 ${inputRingFocus} ${inputBgFocus} focus:z-10 relative bg-transparent text-gray-900 ${bold ? 'font-bold' : ''}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onBlur}
@@ -117,6 +118,8 @@ const Cell = ({ value, onChange, onBlur, bold, colorKey, readonly, className = '
 }
 
 export default function AnnualReportPage() {
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('reportId');
   const [activeSheet, setActiveSheet] = useState<number>(2);
 
   const [showTitleSettings, setShowTitleSettings] = useState(false);
@@ -128,6 +131,38 @@ export default function AnnualReportPage() {
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState<Lang>("uz");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!reportId) return;
+    (async () => {
+      try {
+        const report = await getAnnualReportById(reportId);
+        if (!report) return;
+        const d = JSON.parse(report.data);
+        if (d.sheets) setSheets(d.sheets);
+        if (d.bsbMaxScores) setBsbMaxScores(d.bsbMaxScores);
+        if (d.chsbMaxScores) setChsbMaxScores(d.chsbMaxScores);
+        if (d.bsbCounts) setBsbCounts(d.bsbCounts);
+        if (d.title1) {
+          setTitle1(d.title1);
+          const tumanMatch = d.title1.match(/^(.*?)\s+tumani/i);
+          const maktabMatch = d.title1.match(/tumani\s+(.*?)\s+maktab/i);
+          const fanMatch = d.title1.match(/"(.*?)"\s+fanidan/i);
+          if (tumanMatch) setTumanInput(tumanMatch[1]);
+          if (maktabMatch) setMaktabInput(maktabMatch[1]);
+          if (fanMatch) setFanInput(fanMatch[1]);
+        }
+        if (d.titleYear) setTitleYear(d.titleYear);
+        if (d.teacherName) setTeacherName(d.teacherName);
+        if (report.subject) {
+          setSelectedSubject(report.subject);
+          setFanInput(report.subject);
+        }
+      } catch (e) {
+        console.error("Yillik hisobotni yuklashda xatolik", e);
+      }
+    })();
+  }, [reportId]);
 
   useEffect(() => {
     const saved = document.cookie.match(/(?:^|;\s*)lang=([^;]*)/)?.[1] as Lang | undefined;
@@ -285,6 +320,7 @@ export default function AnnualReportPage() {
   }, [bsbCounts]);
 
   useEffect(() => {
+    if (reportId) return;
     (async () => {
       try {
         const res = await getTeacherData();
@@ -329,10 +365,10 @@ export default function AnnualReportPage() {
         console.error("Ma'lumotlarni yuklashda xatolik", e);
       }
     })();
-  }, []);
+  }, [reportId]);
 
   useEffect(() => {
-    if (!selectedSubject) return;
+    if (!selectedSubject || reportId) return;
     setLoading(true);
     (async () => {
       try {
@@ -991,7 +1027,7 @@ export default function AnnualReportPage() {
         titleYear,
         teacherName,
       });
-      await saveAnnualReport(selectedSubject, title1, titleYear, teacherName, payload);
+      await saveAnnualReport(selectedSubject, title1, titleYear, teacherName, payload, reportId || undefined);
       alert(t("bsb_chsb.saved_msg", lang) || "Saqlab qo'yildi");
     } catch (err) {
       console.error("Save error:", err);

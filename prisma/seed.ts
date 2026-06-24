@@ -23,7 +23,7 @@ async function main() {
   await prisma.user.upsert({
     where: { login: "admin" },
     update: {},
-    create: { fullName: "System Admin", login: "admin", password: adminHash, role: "admin" },
+    create: { fullName: "System Admin", login: "admin", password: adminHash, plainPassword: "admin123", role: "admin" },
   });
 
   const school = await prisma.school.upsert({
@@ -42,7 +42,7 @@ async function main() {
     await prisma.user.upsert({
       where: { login: u.login },
       update: {},
-      create: { login: u.login, fullName: u.fullName, password: u.password, role: u.role, schoolId: school.id },
+      create: { login: u.login, fullName: u.fullName, password: u.password, role: u.role, schoolId: school.id, plainPassword: u.login === "dilrabo" ? "dilrabo" : "123456" },
     });
   }
 
@@ -55,7 +55,7 @@ async function main() {
   await prisma.user.upsert({
     where: { login: "teacher23" },
     update: {},
-    create: { login: "teacher23", fullName: "Boboyev D.", password: userHash, role: "teacher", schoolId: school2.id },
+    create: { login: "teacher23", fullName: "Boboyev D.", password: userHash, plainPassword: "123456", role: "teacher", schoolId: school2.id },
   });
 
   console.log("✅ Seed: 1 admin + 2 schools + 5 users created");

@@ -41,18 +41,18 @@ export function UsersSection({ schoolId, users, lang }: { schoolId: string; user
           router.refresh();
         }} className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div><label className="mb-1 block text-xs font-medium text-gray-600">{t("users.full_name", lang)}</label><input name="fullName" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500" /></div>
-            <div><label className="mb-1 block text-xs font-medium text-gray-600">{t("users.login", lang)}</label><input name="login" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500" /></div>
-            <div><label className="mb-1 block text-xs font-medium text-gray-600">{t("users.password", lang)}</label><input name="password" type="password" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500" /></div>
+            <div><label className="mb-1 block text-xs font-medium text-gray-600">{t("users.full_name", lang)}</label><input name="fullName" required className="w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-indigo-500 min-h-[44px]" /></div>
+            <div><label className="mb-1 block text-xs font-medium text-gray-600">{t("users.login", lang)}</label><input name="login" required className="w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-indigo-500 min-h-[44px]" /></div>
+            <div><label className="mb-1 block text-xs font-medium text-gray-600">{t("users.password", lang)}</label><input name="password" type="password" required className="w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-indigo-500 min-h-[44px]" /></div>
             <div><label className="mb-1 block text-xs font-medium text-gray-600">{t("users.role", lang)}</label>
-              <select name="role" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500">
+              <select name="role" required className="w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-indigo-500 min-h-[44px]">
                 {roles.map((r) => <option key={r} value={r}>{t(`role.${r}`, lang)}</option>)}
               </select>
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setShow(false)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">{t("users.cancel", lang)}</button>
-            <button type="submit" disabled={pending} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">{t("users.save", lang)}</button>
+            <button type="button" onClick={() => setShow(false)} className="touch-target rounded-lg border border-gray-300 px-3 text-sm text-gray-600 hover:bg-gray-100">{t("users.cancel", lang)}</button>
+            <button type="submit" disabled={pending} className="touch-target rounded-lg bg-indigo-600 px-3 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">{t("users.save", lang)}</button>
           </div>
         </form>
       )}

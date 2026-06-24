@@ -110,7 +110,7 @@ export default function DirectorAnnualReports() {
       </div>
 
       {/* Stats bar */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <BarChart3 className="h-4 w-4 text-emerald-500" />

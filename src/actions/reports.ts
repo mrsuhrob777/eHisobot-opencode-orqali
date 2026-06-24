@@ -438,19 +438,30 @@ export async function getAnnualReportData(): Promise<{ data: AnnualReportData[];
   return { data: result, meta };
 }
 
-export async function saveAnnualReport(subject: string, title: string, year: string, teacherName: string, data: string) {
+export async function saveAnnualReport(subject: string, title: string, year: string, teacherName: string, data: string, reportId?: string) {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "teacher") throw new Error("Only teachers can save reports");
 
-  const report = await prisma.annualReportData.create({
-    data: { userId: session.userId, subject, title, year, teacherName, data },
-  });
-
-  logger.info("annual report saved", { reportId: report.id, userId: session.userId, subject, title });
+  let report;
+  if (reportId) {
+    const existing = await prisma.annualReportData.findUnique({ where: { id: reportId } });
+    if (!existing || existing.userId !== session.userId) throw new Error("Not found");
+    report = await prisma.annualReportData.update({
+      where: { id: reportId },
+      data: { subject, title, year, teacherName, data },
+    });
+    logger.info("annual report updated", { reportId: report.id, userId: session.userId, subject, title });
+  } else {
+    report = await prisma.annualReportData.create({
+      data: { userId: session.userId, subject, title, year, teacherName, data },
+    });
+    logger.info("annual report saved", { reportId: report.id, userId: session.userId, subject, title });
+  }
 
   revalidatePath("/teacher/reports");
   revalidatePath("/teacher");
+  revalidatePath("/teacher/annual-report");
   return { id: report.id };
 }
 
@@ -461,6 +472,15 @@ export async function getAnnualReportList() {
     where: { userId: session.userId },
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function getAnnualReportById(id: string) {
+  const session = await getSession();
+  if (!session) return null;
+
+  const report = await prisma.annualReportData.findUnique({ where: { id } });
+  if (!report || report.userId !== session.userId) return null;
+  return report;
 }
 
 export async function deleteAnnualReport(id: string) {

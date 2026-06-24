@@ -3,7 +3,7 @@
 import { logout } from "@/actions/auth";
 import { t, type Lang } from "@/lib/i18n";
 import { useState, useEffect } from "react";
-import { LayoutDashboard, LogOut } from "lucide-react";
+import { LayoutDashboard, LogOut, User } from "lucide-react";
 
 export default function DeputyDirectorLayout({ children }: { children: React.ReactNode }) {
   const [lang, setLang] = useState<Lang>("uz");
@@ -51,6 +51,10 @@ export default function DeputyDirectorLayout({ children }: { children: React.Rea
             className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-amber-50 hover:text-amber-700 transition-all">
             <LayoutDashboard className="h-5 w-5" /> {t("sidebar.dashboard", lang)}
           </a>
+          <a href="/deputy-director/profile"
+            className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-amber-50 hover:text-amber-700 transition-all">
+            <User className="h-5 w-5" /> {t("sidebar.profile", lang)}
+          </a>
         </nav>
         <div className="border-t border-gray-100 p-3">
           <div className="mb-2 px-4 py-2">
@@ -92,13 +96,13 @@ export default function DeputyDirectorLayout({ children }: { children: React.Rea
           <div className="flex items-center gap-2 lg:hidden">
             <form action={logout}>
               <button type="submit"
-                className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all">
+                className="flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all touch-target px-3">
                 <LogOut className="h-4 w-4" />
               </button>
             </form>
             <div className="relative" data-lang="true">
               <button onClick={() => setLangOpen(!langOpen)}
-                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white pl-1.5 pr-2 py-1.5 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-amber-300">
+                className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none transition-all cursor-pointer hover:border-amber-300 touch-target">
                 <span className="flex items-center gap-1">{lang === "uz" ? <>{langBadge("uz")}</> : lang === "en" ? <>{langBadge("en")}</> : <>{langBadge("ru")}</>}</span>
                 <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -134,9 +138,14 @@ export default function DeputyDirectorLayout({ children }: { children: React.Rea
       {/* Mobile Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-gray-200 bg-white lg:hidden safe-area-bottom">
         <a href="/deputy-director"
-          className="flex flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors min-w-0 text-amber-600">
+          className="mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors text-amber-600">
           <LayoutDashboard className="h-5 w-5 text-amber-600" />
           <span className="truncate max-w-[56px] text-center leading-tight">{t("sidebar.dashboard", lang)}</span>
+        </a>
+        <a href="/deputy-director/profile"
+          className="mobile-nav-btn flex flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium transition-colors text-gray-500">
+          <User className="h-5 w-5" />
+          <span className="truncate max-w-[56px] text-center leading-tight">{t("sidebar.profile", lang)}</span>
         </a>
       </nav>
     </div>

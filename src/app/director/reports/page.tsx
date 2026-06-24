@@ -192,13 +192,13 @@ export default function DirectorReports() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
             <button onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`touch-target flex items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all ${
                 viewMode === "list" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`} title="Ro'yxat ko'rinishi">
               <List className="h-4 w-4" /> List
             </button>
             <button onClick={() => setViewMode("cards")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`touch-target flex items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all ${
                 viewMode === "cards" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`} title="Kartochkalar ko'rinishi">
               <LayoutGrid className="h-4 w-4" /> Kartalar
@@ -219,7 +219,7 @@ export default function DirectorReports() {
       </div>
 
       {/* Stats bar */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <FileText className="h-4 w-4 text-sky-500" />

@@ -5,15 +5,25 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 
 /* === Mobile Responsive (max-width: 768px) === */
 @media (max-width: 768px) {
-  /* Bottom nav safe area for iOS */
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
-
-  /* Inputs / selects min touch height */
-  input, select, button, textarea {
-    font-size: 16px !important; /* prevent iOS zoom on focus */
+  input, select, button, textarea, a {
+    font-size: 16px !important;
   }
+}
+
+/* === Touch-friendly targets (min 44px) === */
+@media (hover: none) and (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+.mobile-nav-btn {
+  min-height: 44px;
+  min-width: 56px;
 }
 
 /* Custom scrollbar */
